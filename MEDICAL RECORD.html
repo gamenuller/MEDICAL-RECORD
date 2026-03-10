@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>规培模拟器：申博生死劫 V4.0 (医疗主题版)</title>
+    <style>
+        /* 医疗夜班深色背景 */
+        body {
+            font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: #0c2461; /* 急诊夜班深蓝 */
+            color: #ecf0f1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            background-image: radial-gradient(circle at center, #1e3799 0%, #0c2461 100%);
+        }
+        /* 核心监护仪面板 */
+        #game-container {
+            background-color: #1e272e;
+            width: 100%;
+            max-width: 420px;
+            height: 92vh;
+            border-radius: 20px;
+            box-shadow: 0 0 30px rgba(0, 216, 214, 0.15), inset 0 0 10px rgba(0,0,0,0.5);
+            display: flex;
+            flex-direction: column;
+            padding: 25px;
+            box-sizing: border-box;
+            position: relative;
+            border: 1px solid #34495e;
+        }
+
+        /* 顶部：监护仪抬头 */
+        #header-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px dashed #34495e;
+        }
+        #day-counter { font-size: 16px; font-weight: bold; color: #00d8d6; letter-spacing: 1px; }
+        #money-display { font-size: 16px; font-weight: bold; color: #f1c40f; background: rgba(241, 196, 15, 0.1); padding: 4px 10px; border-radius: 8px;}
+
+        /* 四大指标：生命体征监护条 */
+        #stats-panel {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .stat-item { display: flex; flex-direction: column; font-size: 12px; font-weight: bold; color: #808e9b;}
+        .stat-item span { margin-bottom: 6px; }
+        progress { width: 100%; height: 10px; border-radius: 5px; -webkit-appearance: none; background: #2f3640; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5);}
+        progress::-webkit-progress-bar { background-color: #2f3640; border-radius: 5px; }
+        progress::-webkit-progress-value { border-radius: 5px; transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
+        /* 霓虹发光色 */
+        #bar-stamina::-webkit-progress-value { background-color: #ff4757; box-shadow: 0 0 8px #ff4757; }
+        #bar-academic::-webkit-progress-value { background-color: #5352ed; box-shadow: 0 0 8px #5352ed; }
+        #bar-favor::-webkit-progress-value { background-color: #ffa502; box-shadow: 0 0 8px #ffa502; }
+        #bar-patient::-webkit-progress-value { background-color: #2ed573; box-shadow: 0 0 8px #2ed573; }
+
+        /* 卡牌：临床病历夹风格 */
+        #card-container {
+            flex-grow: 1;
+            background-color: #ffffff; /* 纯白病历纸 */
+            color: #2f3640;
+            border-radius: 8px;
+            padding: 25px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            position: relative;
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+            z-index: 10;
+            border-top: 15px solid #dfe4ea; /* 模拟病历夹顶部的夹子 */
+        }
+        #card-container::before {
+            content: "MEDICAL RECORD";
+            position: absolute;
+            top: 2px;
+            font-size: 8px;
+            color: #a4b0be;
+            letter-spacing: 2px;
+        }
+        #card-title { font-size: 22px; margin-bottom: 15px; font-weight: 900; color: #2f3640; }
+        .special-title { color: #e15f41 !important; }
+        .weekend-title { color: #303952 !important; }
+        #card-desc { font-size: 15px; line-height: 1.6; color: #576574; text-align: left; width: 100%; border-top: 1px solid #f1f2f6; padding-top: 15px;}
+
+        /* 决策按钮 */
+        #action-panel { display: flex; justify-content: space-between; margin-top: 25px; gap: 15px; z-index: 10; }
+        .action-btn {
+            flex: 1; padding: 15px; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s;
+            color: white; min-height: 80px; display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.2);
+        }
+        .action-btn:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 0 0 rgba(0,0,0,0.2); }
+        .action-btn:disabled { filter: grayscale(100%); cursor: not-allowed; box-shadow: none; transform: none; }
+        #btn-left { background-color: #ff6b81; } /* 拒绝/高风险 红色 */
+        #btn-right { background-color: #1dd1a1; } /* 接受/低风险 绿色 */
+
+        /* 视觉特效 (Game Juice) */
+        #damage-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            box-shadow: inset 0 0 0px rgba(255, 71, 87, 0);
+            pointer-events: none; transition: box-shadow 0.2s ease-out;
+            border-radius: 20px; z-index: 50;
+        }
+        .flash-red { box-shadow: inset 0 0 100px rgba(255, 71, 87, 0.8) !important; }
+
+        @keyframes shake {
+            0% { transform: translate(1px, 1px) rotate(0deg); }
+            10% { transform: translate(-2px, -2px) rotate(-1deg); }
+            20% { transform: translate(-3px, 0px) rotate(1deg); }
+            30% { transform: translate(3px, 2px) rotate(0deg); }
+            40% { transform: translate(1px, -1px) rotate(1deg); }
+            50% { transform: translate(-1px, 2px) rotate(-1deg); }
+            60% { transform: translate(-3px, 1px) rotate(0deg); }
+            70% { transform: translate(3px, 1px) rotate(-1deg); }
+            80% { transform: translate(-1px, -1px) rotate(1deg); }
+            90% { transform: translate(1px, 2px) rotate(0deg); }
+            100% { transform: translate(1px, -2px) rotate(-1deg); }
+        }
+        .shake-active { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+
+        .card-swipe-left { transform: translateX(-150px) rotate(-15deg) scale(0.8); opacity: 0; }
+        .card-swipe-right { transform: translateX(150px) rotate(15deg) scale(0.8); opacity: 0; }
+
+        /* 结局覆盖层 */
+        #ending-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(12, 36, 97, 0.95); border-radius: 20px; display: none;
+            flex-direction: column; justify-content: center; align-items: center;
+            padding: 30px; text-align: center; z-index: 100;
+        }
+        #ending-title { font-size: 32px; color: #ff4757; margin-bottom: 20px; font-weight: 900; }
+        #ending-text { font-size: 16px; line-height: 1.8; margin-bottom: 40px; color: #d2dae2; }
+        #restart-btn {
+            padding: 15px 30px; background-color: #00d8d6; color: #1e272e;
+            border: none; border-radius: 8px; cursor: pointer; font-size: 18px; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0, 216, 214, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="damage-overlay"></div>
+
+    <div id="header-panel">
+        <div id="day-counter">DAY: 1 / 50</div>
+        <div id="money-display">¥300.00</div>
+    </div>
+
+    <div id="stats-panel">
+        <div class="stat-item"><span>❤️ 体力/生命</span><progress id="bar-stamina" value="70" max="100"></progress></div>
+        <div class="stat-item"><span>🧠 SCI/申博</span><progress id="bar-academic" value="70" max="100"></progress></div>
+        <div class="stat-item"><span>⭐ 导师/人际</span><progress id="bar-favor" value="70" max="100"></progress></div>
+        <div class="stat-item"><span>🛡️ 医患/防御</span><progress id="bar-patient" value="70" max="100"></progress></div>
+    </div>
+
+    <div id="card-container">
+        <h2 id="card-title">系统载入中...</h2>
+        <p id="card-desc">正在为您分配轮转科室...</p>
+    </div>
+
+    <div id="action-panel">
+        <button id="btn-left" class="action-btn" onclick="makeChoice('left')">向左</button>
+        <button id="btn-right" class="action-btn" onclick="makeChoice('right')">向右</button>
+    </div>
+
+    <div id="ending-overlay">
+        <h2 id="ending-title">结局</h2>
+        <p id="ending-text">详细描述</p>
+        <button id="restart-btn" onclick="initGame()">重新开始规培</button>
+    </div>
+</div>
+
+<script>
+    // 初始属性提升：开局70分，钱300，增加容错率
+    let stats = { stamina: 70, academic: 70, favor: 70, patient: 70, money: 300 };
+    let daysSurvived = 0;
+    const MAX_DAYS = 50; 
+    let currentEvent = null;
+
+    // 纯手工 50 题通用题库
+    const eventDeck = [
+        { title: "夺命连环 Call", desc: "凌晨3点，32床说他睡不着，让你开个安眠药。", leftText: "让他数羊！", leftEffect: { stamina: 10, patient: -20, academic: 0, favor: 0, money: 0 }, rightText: "去开医嘱", rightEffect: { stamina: -15, patient: 10, academic: 0, favor: 0, money: 0 } },
+        { title: "大病历地狱", desc: "明天要迎检，科里还有 10 份大病历没写完。", leftText: "装病拉肚子", leftEffect: { favor: -20, academic: 10, stamina: 0, patient: 0, money: 0 }, rightText: "通宵敲键盘", rightEffect: { stamina: -25, favor: 15, academic: 0, patient: 0, money: 0 } },
+        { title: "抢救室推车", desc: "急诊送来心衰患者，推车轮子坏了，需要你一起扛。", leftText: "呼叫支援", leftEffect: { stamina: 0, patient: -15, favor: -10, academic: 0, money: 0 }, rightText: "咬牙死扛", rightEffect: { stamina: -25, patient: 20, favor: 10, academic: 0, money: 0 } },
+        { title: "穿刺失败", desc: "给满臂纹身的大哥抽血一针没见血，大哥瞪起了眼睛。", leftText: "换个地方继续", leftEffect: { patient: -30, stamina: -5, favor: 0, academic: 0, money: 0 }, rightText: "鞠躬并摇人", rightEffect: { patient: 10, favor: -10, stamina: 0, academic: 0, money: 0 } },
+        { title: "手术室拉钩", desc: "四级大手术，你作为三助拉钩 5 个小时，膀胱快炸了。", leftText: "我要上厕所", leftEffect: { stamina: 15, favor: -20, academic: 0, patient: 0, money: 0 }, rightText: "意志力锁死", rightEffect: { stamina: -30, favor: 15, academic: 0, patient: 0, money: 0 } },
+        { title: "饭点收治", desc: "刚打开外卖，急诊推上来一个消化道大出血。", leftText: "先扒两口饭", leftEffect: { stamina: 10, patient: -25, favor: 0, academic: 0, money: 0 }, rightText: "扔下筷子冲锋", rightEffect: { stamina: -20, patient: 15, favor: 10, academic: 0, money: 0 } },
+        { title: "夜班幻听", desc: "安静的走廊里，你仿佛听到了监护仪报警的“滴滴”声。", leftText: "戴耳机睡觉", leftEffect: { stamina: 20, patient: -20, favor: 0, academic: 0, money: 0 }, rightText: "神经衰弱巡房", rightEffect: { stamina: -20, patient: 10, favor: 0, academic: 0, money: 0 } },
+        { title: "拔管风波", desc: "全麻术后病人躁动，差点把重要引流管拔了。", leftText: "让护士处理", leftEffect: { patient: -10, favor: -10, stamina: 0, academic: 0, money: 0 }, rightText: "死死按住病人", rightEffect: { stamina: -20, patient: 15, favor: 0, academic: 0, money: 0 } },
+        { title: "跨科会诊", desc: "去别的科室会诊，对方主治态度很不耐烦。", leftText: "直接怼回去", leftEffect: { favor: -15, stamina: 0, patient: 0, academic: 0, money: 0 }, rightText: "赔笑脸写意见", rightEffect: { stamina: -10, favor: 10, patient: 0, academic: 0, money: 0 } },
+        { title: "机器故障", desc: "病区的除颤仪突然开不了机了，护士长让你看看。", leftText: "叫维修科", leftEffect: { favor: -15, stamina: 0, patient: 0, academic: 0, money: 0 }, rightText: "化身网管拍机器", rightEffect: { stamina: -10, favor: 10, patient: 0, academic: 0, money: 0 } },
+        { title: "抢夺电脑", desc: "早交班全科抢电脑下医嘱，你被挤在最外面。", leftText: "躲去厕所摸鱼", leftEffect: { stamina: 10, favor: -15, patient: 0, academic: 0, money: 0 }, rightText: "夹缝中站着敲字", rightEffect: { stamina: -15, favor: 10, patient: 10, academic: 0, money: 0 } },
+        { title: "心电图长跑", desc: "新收了10个病人，全都需要推着破旧机器做心电图。", leftText: "拖到下午做", leftEffect: { patient: -20, favor: -10, stamina: 0, academic: 0, money: 0 }, rightText: "满走廊狂奔", rightEffect: { stamina: -25, patient: 15, favor: 10, academic: 0, money: 0 } },
+        { title: "出院小结", desc: "今天科里出院 8 个人，主任催着你打印小结。", leftText: "随便复制粘贴", leftEffect: { academic: -10, patient: -10, favor: -10, stamina: 0, money: 0 }, rightText: "字斟句酌核对", rightEffect: { stamina: -20, patient: 10, favor: 10, academic: 0, money: 0 } },
+        { title: "家属的录音笔", desc: "谈话签字时，你敏锐地发现家属口袋里亮着录音笔红灯。", leftText: "拒绝谈话", leftEffect: { patient: -25, favor: -10, stamina: 0, academic: 0, money: 0 }, rightText: "背诵免责声明", rightEffect: { stamina: -20, patient: 20, favor: 0, academic: 0, money: 0 } },
+        { title: "交班甩锅", desc: "上一班的同事漏开了检查，主任查房时正在发火。", leftText: "替同事背锅", leftEffect: { favor: -15, stamina: -10, patient: 0, academic: 0, money: 0 }, rightText: "当众指出责任", rightEffect: { favor: 10, patient: -10, stamina: 0, academic: 0, money: 0 } },
+        { title: "同门的内卷", desc: "组会上，同门已经在投二区文章了，你还没有头绪。", leftText: "彻底摆烂", leftEffect: { academic: -25, stamina: 10, favor: -10, patient: 0, money: 0 }, rightText: "通宵补实验数据", rightEffect: { stamina: -30, academic: 20, favor: 10, patient: 0, money: 0 } },
+        { title: "考博简章", desc: "目标医院发布了考博简章，要求必须有一篇高分 SCI。", leftText: "觉得自己没戏了", leftEffect: { academic: -15, stamina: 10, favor: 0, patient: 0, money: 0 }, rightText: "打满鸡血肝论文", rightEffect: { stamina: -20, academic: 20, favor: 0, patient: 0, money: 0 } },
+        { title: "细胞污染", desc: "养了半个月的细胞全长了黑胶虫，前功尽弃。", leftText: "崩溃去喝酒(-¥50)", leftEffect: { stamina: -10, academic: -20, money: -50, favor: 0, patient: 0 }, rightText: "清理培养箱重来", rightEffect: { stamina: -25, academic: 15, favor: 0, patient: 0, money: 0 } },
+        { title: "发票刺客", desc: "导师丢给你一叠杂乱的发票去报销，财务大妈态度极差。", leftText: "和财务大妈吵架", leftEffect: { stamina: -10, favor: -20, academic: 0, patient: 0, money: 0 }, rightText: "赔笑脸贴发票", rightEffect: { stamina: -20, favor: 15, academic: -5, patient: 0, money: 0 } },
+        { title: "英语复习", desc: "考博需要极高的英语成绩，今晚刷真题还是看病区？", leftText: "躲在值班室刷题", leftEffect: { academic: 15, patient: -15, stamina: 0, favor: 0, money: 0 }, rightText: "老实去巡房", rightEffect: { patient: 15, academic: -15, stamina: 0, favor: 0, money: 0 } },
+        { title: "数据造假诱惑", desc: "实验跑不出来，师兄暗示你可以“借”点旧数据。", leftText: "坚决不造假", leftEffect: { academic: -15, stamina: -20, favor: 0, patient: 0, money: 0 }, rightText: "拼凑数据", rightEffect: { academic: 30, favor: -30, stamina: 0, patient: 0, money: 0 } },
+        { title: "核心退稿", desc: "准备申博的论文被拒，审稿人提出了尖锐的意见。", leftText: "心态崩了不改了", leftEffect: { academic: -25, stamina: 10, favor: 0, patient: 0, money: 0 }, rightText: "连夜大修重投", rightEffect: { stamina: -30, academic: 25, favor: 0, patient: 0, money: 0 } },
+        { title: "版面费困境", desc: "文章录用要交版面费，导师装死不提报销的事。", leftText: "自己垫付(-¥150)", leftEffect: { money: -150, academic: 30, stamina: -10, favor: 0, patient: 0 }, rightText: "疯狂暗示导师", rightEffect: { favor: -25, academic: 10, stamina: 0, patient: 0, money: 0 } },
+        { title: "抢夺一作", desc: "文章要发了，导师想让有背景的同门挂共同第一作者。", leftText: "据理力争拒绝", leftEffect: { favor: -40, academic: 20, stamina: 0, patient: 0, money: 0 }, rightText: "忍气吞声接受", rightEffect: { favor: 20, academic: -30, stamina: -10, patient: 0, money: 0 } },
+        { title: "盲审代笔", desc: "导师的基金需要盲审，让你代笔写几条评审意见。", leftText: "敷衍写两句", leftEffect: { favor: -25, stamina: 0, academic: 0, patient: 0, money: 0 }, rightText: "字斟句酌写满两页", rightEffect: { stamina: -20, favor: 25, academic: 10, patient: 0, money: 0 } },
+        { title: "统计学地狱", desc: "SPSS 软件报错，P值怎么都算不出小于 0.05。", leftText: "强行删掉异常值", leftEffect: { academic: 20, favor: -20, stamina: 0, patient: 0, money: 0 }, rightText: "找大神求教(-¥50)", rightEffect: { money: -50, academic: 15, stamina: -10, favor: 0, patient: 0 } },
+        { title: "组会处刑", desc: "本周组会你要汇报顶刊文献，但天天夜班根本没看。", leftText: "硬着头皮胡说八道", leftEffect: { favor: -30, academic: -10, stamina: 0, patient: 0, money: 0 }, rightText: "通宵填鸭强记", rightEffect: { stamina: -25, favor: 15, academic: 10, patient: 0, money: 0 } },
+        { title: "伦理审查", desc: "临床研究卡在医院伦理委员会了，需要补充材料。", leftText: "拖延症犯了", leftEffect: { academic: -20, favor: -10, stamina: 0, patient: 0, money: 0 }, rightText: "厚脸皮去科教科催", rightEffect: { stamina: -15, academic: 15, favor: 0, patient: 0, money: 0 } },
+        { title: "翻译外包", desc: "为了尽快投稿，你需要给论文润色。", leftText: "用机翻", leftEffect: { money: -30, academic: -20, stamina: 0, favor: 0, patient: 0 }, rightText: "重金润色(-¥150)", rightEffect: { money: -150, academic: 25, stamina: 0, favor: 0, patient: 0 } },
+        { title: "动物实验", desc: "由于长期不去照看，你在动物中心养的实验鼠出问题了。", leftText: "偷偷隐瞒", leftEffect: { favor: -20, academic: -15, stamina: 0, patient: 0, money: 0 }, rightText: "向导师承认错误", rightEffect: { favor: -10, stamina: -10, academic: 0, patient: 0, money: 0 } },
+        { title: "家属质问", desc: "家属拿着网络词条质问你为什么不用高级药。", leftText: "你看网还是看我？", leftEffect: { patient: -30, stamina: 0, favor: 0, academic: 0, money: 0 }, rightText: "画图科普半小时", rightEffect: { stamina: -15, patient: 15, favor: 0, academic: 0, money: 0 } },
+        { title: "神仙打架", desc: "导师和科室大主任不和，大主任查房时故意刁难你。", leftText: "搬出导师硬刚", leftEffect: { favor: -30, patient: -10, stamina: 0, academic: 0, money: 0 }, rightText: "装孙子疯狂道歉", rightEffect: { stamina: -20, favor: 10, patient: 0, academic: 0, money: 0 } },
+        { title: "红包考验", desc: "一个老病号出院前，硬往你口袋里塞了个信封。", leftText: "严词拒绝", leftEffect: { favor: 10, patient: -10, stamina: 0, academic: 0, money: 0 }, rightText: "当做住院费交掉", rightEffect: { stamina: -10, patient: 20, favor: 10, academic: 0, money: 0 } },
+        { title: "打杂跑腿", desc: "导师打电话，让你去帮他办私事。", leftText: "找借口拒绝", leftEffect: { favor: -25, stamina: 10, patient: 0, academic: 0, money: 0 }, rightText: "立刻打车去(-¥30)", rightEffect: { stamina: -15, favor: 25, money: -30, academic: 0, patient: 0 } },
+        { title: "床位危机", desc: "走廊都加满了床，急诊还要强行往你这收人。", leftText: "和急诊大吵一架", leftEffect: { favor: -15, patient: -10, stamina: -10, academic: 0, money: 0 }, rightText: "绞尽脑汁劝人出院", rightEffect: { stamina: -20, patient: 10, favor: 10, academic: 0, money: 0 } },
+        { title: "病历质控", desc: "病案室说你的病历有丙级缺陷，要扣钱。", leftText: "随他扣(-¥100)", leftEffect: { money: -100, favor: -20, stamina: 0, academic: 0, patient: 0 }, rightText: "买奶茶求情(-¥30)", rightEffect: { money: -30, stamina: -15, favor: 10, academic: 0, patient: 0 } },
+        { title: "VIP 病人", desc: "病区住进了关系户，主任嘱咐必须一天查三次房。", leftText: "一视同仁按常规管", leftEffect: { favor: -30, patient: -20, stamina: 0, academic: 0, money: 0 }, rightText: "化身私人管家", rightEffect: { stamina: -30, favor: 20, patient: 10, academic: 0, money: 0 } },
+        { title: "开错医嘱", desc: "把毫克开成了克，幸好护士打针前发现了。", leftText: "偷偷改掉装不知道", leftEffect: { stamina: -20, favor: -10, patient: 0, academic: 0, money: 0 }, rightText: "买零食感谢(-¥50)", rightEffect: { money: -50, stamina: 0, favor: 10, patient: 15, academic: 0 } },
+        { title: "医闹苗头", desc: "病人抱怨治疗没效果，纠集了亲戚堵在办公室。", leftText: "立刻呼叫保安", leftEffect: { patient: -20, favor: -10, stamina: 0, academic: 0, money: 0 }, rightText: "硬着头皮去谈判", rightEffect: { stamina: -30, patient: 10, favor: 10, academic: 0, money: 0 } },
+        { title: "代开处方", desc: "熟人拜托你用他的医保卡违规开点高血压药。", leftText: "严词拒绝", leftEffect: { favor: -10, patient: 0, stamina: 0, academic: 0, money: 0 }, rightText: "偷偷帮他开", rightEffect: { favor: 10, patient: -30, stamina: 0, academic: 0, money: 0 } },
+        { title: "执医考试", desc: "执业医师资格证考试临近，不通过规培直接作废。", leftText: "上班偷偷刷题", leftEffect: { academic: 20, favor: -20, stamina: 0, patient: 0, money: 0 }, rightText: "下班后熬夜死磕", rightEffect: { stamina: -25, academic: 25, favor: 0, patient: 0, money: 0 } },
+        { title: "房租刺客", desc: "房东突然发消息，下个月起房租要涨 500 块。", leftText: "大吵一架不交了", leftEffect: { stamina: -15, money: 0, favor: 0, academic: 0, patient: 0 }, rightText: "默默接受(-¥500)", rightEffect: { money: -500, stamina: -10, academic: 0, favor: 0, patient: 0 } },
+        { title: "同学聚会", desc: "去大厂的同学请客，席间都在聊买房和期权。", leftText: "极度内耗焦虑", leftEffect: { stamina: -20, academic: -10, favor: 0, patient: 0, money: 0 }, rightText: "化嫉妒为动力", rightEffect: { stamina: -15, academic: 20, favor: 0, patient: 0, money: 0 } },
+        { title: "相亲死局", desc: "家里安排了相亲，但今天科里有个大手术可能拖台。", leftText: "请假去相亲", leftEffect: { favor: -30, stamina: 10, patient: 0, academic: 0, money: 0 }, rightText: "留在手术室", rightEffect: { stamina: -20, favor: 15, patient: 0, academic: 0, money: 0 } },
+        { title: "体检报告", desc: "年度体检报告出炉，颈椎和脂肪肝全亮了红灯。", leftText: "办健身卡(-¥200)", leftEffect: { money: -200, stamina: 20, academic: 0, favor: 0, patient: 0 }, rightText: "继续熬夜", rightEffect: { stamina: -10, academic: 10, favor: 0, patient: 0, money: 0 } },
+        { title: "家属的锦旗", type: "funny", desc: "你管过的一个老奶奶康复出院，家属特意送来锦旗。", leftText: "谦虚推辞", leftEffect: { patient: 25, favor: 10, stamina: 0, academic: 0, money: 0 }, rightText: "发朋友圈", rightEffect: { patient: 15, stamina: 10, academic: 0, favor: 0, money: 0 } },
+        { title: "食堂的馈赠", type: "funny", desc: "错过了饭点，打饭阿姨看你辛苦多打了两勺肉。", leftText: "狂炫红烧肉！", leftEffect: { stamina: 30, money: 10, favor: 0, academic: 0, patient: 0 }, rightText: "分给实习生", rightEffect: { stamina: 15, favor: 15, academic: 0, patient: 0, money: 0 } },
+        { title: "双休奇迹", type: "funny", desc: "排班系统出了 Bug，这个周末竟然连着休两天！", leftText: "睡个昏天黑地", leftEffect: { stamina: 50, favor: 0, academic: 0, patient: 0, money: 0 }, rightText: "去市中心逛街(-¥100)", rightEffect: { stamina: 20, money: -100, academic: 0, favor: 0, patient: 0 } },
+        { title: "主任的表扬", type: "funny", desc: "大查房时你精准回答了问题，主任当众夸奖了你。", leftText: "内心狂喜", leftEffect: { favor: 30, stamina: 10, academic: 0, patient: 0, money: 0 }, rightText: "趁机请教课题", rightEffect: { favor: 20, academic: 20, stamina: 0, patient: 0, money: 0 } },
+        { title: "发工资啦", type: "funny", desc: "微薄的规培补贴和夜班费终于到账了。", leftText: "吃顿火锅(+¥2000)", leftEffect: { money: 2000, stamina: 30, academic: 0, favor: 0, patient: 0 }, rightText: "存起来(+¥2000)", rightEffect: { money: 2000, academic: 15, stamina: 10, favor: 0, patient: 0 } }
+    ];
+
+    let currentDeck = [];
+
+    // 周末事件：包含免费防卡死选项
+    const weekendEvent = {
+        title: "难得的周末", type: "weekend",
+        desc: "你迎来了罕见的单休星期天，你摸了摸口袋里的钱。",
+        leftText: "躺平睡觉 (免费)", leftEffect: { stamina: 35, money: 0, academic: -5, favor: 0, patient: 0 },
+        rightText: "论文润色 (-¥100)", rightEffect: { academic: 30, money: -100, stamina: 0, favor: 0, patient: 0 }
+    };
+
+    function initGame() {
+        stats = { stamina: 70, academic: 70, favor: 70, patient: 70, money: 300 };
+        daysSurvived = 0;
+        document.getElementById('ending-overlay').style.display = 'none';
+        
+        currentDeck = [...eventDeck].sort(() => Math.random() - 0.5);
+        
+        updateUI();
+        loadEvent();
+    }
+
+    function loadEvent() {
+        if (daysSurvived >= MAX_DAYS) { checkEnding(true); return; }
+
+        if ((daysSurvived + 1) % 7 === 0) {
+            currentEvent = weekendEvent;
+            document.getElementById('card-title').className = "weekend-title";
+        } else {
+            currentEvent = currentDeck[daysSurvived];
+            document.getElementById('card-title').className = currentEvent.type === "funny" ? "special-title" : "";
+        }
+        
+        document.getElementById('card-title').innerText = currentEvent.title;
+        document.getElementById('card-desc').innerText = currentEvent.desc;
+        
+        // 动态判定余额按钮状态
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+
+        if (stats.money + currentEvent.leftEffect.money < 0) {
+            btnLeft.disabled = true;
+            btnLeft.innerText = `⛔ 余额不足`;
+        } else {
+            btnLeft.disabled = false;
+            btnLeft.innerText = `⬅️ ${currentEvent.leftText}`;
+        }
+
+        if (stats.money + currentEvent.rightEffect.money < 0) {
+            btnRight.disabled = true;
+            btnRight.innerText = `⛔ 余额不足`;
+        } else {
+            btnRight.disabled = false;
+            btnRight.innerText = `${currentEvent.rightText} ➡️`;
+        }
+    }
+
+    function makeChoice(direction) {
+        const effect = direction === 'left' ? currentEvent.leftEffect : currentEvent.rightEffect;
+
+        const gameContainer = document.getElementById('game-container');
+        const damageOverlay = document.getElementById('damage-overlay');
+        const cardContainer = document.getElementById('card-container');
+
+        // 扣血震动与红光
+        if (effect.stamina < 0 || effect.patient < 0 || effect.favor < 0 || effect.academic < 0) {
+            gameContainer.classList.add('shake-active');
+            damageOverlay.classList.add('flash-red');
+        }
+
+        if (direction === 'left') {
+            cardContainer.classList.add('card-swipe-left');
+        } else {
+            cardContainer.classList.add('card-swipe-right');
+        }
+
+        stats.stamina += effect.stamina;
+        stats.academic += effect.academic;
+        stats.favor += effect.favor;
+        stats.patient += effect.patient;
+        stats.money += effect.money;
+
+        for (let key in stats) {
+            if (key !== 'money' && stats[key] > 100) stats[key] = 100;
+        }
+
+        daysSurvived++;
+        updateUI();
+
+        setTimeout(() => {
+            gameContainer.classList.remove('shake-active');
+            damageOverlay.classList.remove('flash-red');
+            cardContainer.classList.remove('card-swipe-left', 'card-swipe-right');
+            
+            cardContainer.style.transition = 'none'; 
+            
+            if (!checkEnding(false)) { loadEvent(); }
+
+            setTimeout(() => {
+                cardContainer.style.transition = 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease';
+            }, 50);
+
+        }, 300);
+    }
+
+    function updateUI() {
+        document.getElementById('day-counter').innerText = `DAY: ${daysSurvived + 1} / 50`;
+        document.getElementById('money-display').innerText = `¥${stats.money}.00`;
+        document.getElementById('bar-stamina').value = stats.stamina;
+        document.getElementById('bar-academic').value = stats.academic;
+        document.getElementById('bar-favor').value = stats.favor;
+        document.getElementById('bar-patient').value = stats.patient;
+    }
+
+    function checkEnding(isWin) {
+        let title = ""; let text = ""; let isGameOver = false;
+
+        if (stats.stamina <= 0) { title = "💀 抢救无效"; text = "长期的夜班让你油尽灯枯，你倒在了心电监护仪旁，心率变成了一条直线。"; isGameOver = true; }
+        else if (stats.patient <= 0) { title = "⚖️ 执业危机"; text = "严重的医患事故爆发，家属在科室大闹，你被通报批评并面临诉讼。"; isGameOver = true; }
+        else if (stats.favor <= 0) { title = "🚪 逐出师门"; text = "主任把你叫进办公室：“你不用来上班了，答辩资格我也给你取消了。”"; isGameOver = true; }
+        else if (stats.academic <= 0) { title = "📚 延期通告"; text = "科教处发来通知：因科研学分不足，你的专硕毕业和规培证书将被延期发放。"; isGameOver = true; }
+        else if (isWin) {
+            isGameOver = true;
+            if (stats.academic >= 70 && stats.favor >= 60) {
+                title = "🌟 顶峰相见"; text = "经过 50 天的地狱折磨，你拿着高分 SCI 和主任签字的极力推荐信，成功拿到了顶级医院 Ph.D. 的 Offer！";
+            } else {
+                title = "🏢 平庸之路"; text = "你活着拿到了规培证，但惨淡的履历让你在内卷中落败。你提着行李，去了县城一家普通医院报到。";
+            }
+        }
+
+        if (isGameOver) {
+            document.getElementById('ending-title').innerText = title;
+            document.getElementById('ending-text').innerText = text;
+            document.getElementById('ending-overlay').style.display = 'flex';
+        }
+        return isGameOver;
+    }
+
+    window.onload = initGame;
+</script>
+
+</body>
+</html>
