@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>规培模拟器 V15.0: 因果报应版</title>
+    <style>
+        :root {
+            --crt-green: #00ff41; --stamina: #ff4757; --academic: #2e86de;
+            --favor: #ffa502; --patient: #2ed573; --money: #f1c40f;
+            --font-main: 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: var(--font-main); background-color: #030405; color: var(--crt-green); margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; user-select: none; }
+        
+        #monitor { width: 100%; max-width: 500px; height: 100vh; max-height: 950px; background: #111; border: 8px solid #2f3542; border-radius: 20px; display: flex; flex-direction: column; position: relative; overflow: hidden; box-shadow: 0 0 50px rgba(0,0,0,0.9); }
+        @media (max-width: 500px) { #monitor { border: none; border-radius: 0; height: 100vh; max-height: 100vh; } }
+        
+        #screen { flex: 1; background: #000; margin: 10px; border-radius: 12px; padding: 15px; display: flex; flex-direction: column; position: relative; background-image: linear-gradient(rgba(0,0,0,0) 50%, rgba(0,0,0,0.15) 50%); background-size: 100% 4px; }
+        
+        #status-bar { display: flex; justify-content: space-between; margin-bottom: 15px; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .stat-group { display: flex; flex-direction: column; justify-content: flex-end; }
+        .stat-label { font-size: 12px; color: #777; letter-spacing: 1px; }
+        #day-val { font-size: 42px; font-weight: 900; color: var(--crt-green); line-height: 1; }
+        #money-val { font-size: 42px; font-weight: 900; color: var(--money); line-height: 1; text-align: right;}
+        
+        #dept-sign { padding: 8px; text-align: center; font-weight: 900; font-size: 18px; margin-bottom: 15px; border: 2px solid; border-radius: 8px; letter-spacing: 2px; }
+        
+        #vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .vital-box { border: 1px solid #222; padding: 10px; background: rgba(255,255,255,0.03); position: relative; border-radius: 6px;}
+        .vital-label { font-size: 12px; color: #aaa; margin-bottom: 5px; display: block; font-weight: bold; }
+        .v-num { font-size: 28px; font-weight: 900; line-height: 1; }
+        #ecg-container { position: absolute; right: 5px; top: 10px; width: 80px; height: 30px; pointer-events: none; }
+        #ecg-canvas { width: 100%; height: 100%; }
+        .bar-bg { height: 6px; background: #111; width: 100%; margin-top: 8px; border-radius: 3px; }
+        .bar-fill { height: 100%; transition: width 0.3s; border-radius: 3px; }
+        
+        #card { flex: 1; border-radius: 12px; padding: 25px 20px; text-align: center; display: flex; flex-direction: column; justify-content: center; align-items: center; border: 1px solid #333; transition: all 0.4s ease; background: #121518; }
+        .th-normal { box-shadow: inset 0 0 20px rgba(0,0,0,0.8); }
+        .th-blood { background: #2a0808 !important; border-color: #ff4757 !important; box-shadow: inset 0 0 60px rgba(255,0,0,0.4) !important; }
+        .th-money { background: #261f04 !important; border-color: #f1c40f !important; box-shadow: inset 0 0 50px rgba(241,196,15,0.2) !important; }
+        .th-paper { background: #081b2a !important; border-color: #2e86de !important; box-shadow: inset 0 0 50px rgba(46,134,222,0.2) !important; }
+        .th-toxic { background: #0a200a !important; border-color: #2ed573 !important; box-shadow: inset 0 0 50px rgba(46,213,115,0.2) !important; }
+        .th-dark { background: #000 !important; border-color: #444 !important; box-shadow: inset 0 0 80px rgba(0,0,0,1) !important; }
+        
+        #card-t { font-size: 24px; color: #fff; margin-bottom: 15px; font-weight: 900; line-height: 1.3; width: 100%; }
+        #card-d { font-size: 17px; color: #dcdde1; line-height: 1.6; text-align: justify; margin-bottom: 10px; }
+        
+        #btns { display: flex; gap: 12px; margin-top: 15px; }
+        .btn { flex: 1; padding: 20px 10px; background: #080808; border: 2px solid var(--crt-green); color: var(--crt-green); cursor: pointer; font-size: 16px; font-weight: 900; border-radius: 8px; transition: 0.2s; word-break: break-word; line-height: 1.3; }
+        .btn:hover:not(:disabled) { background: var(--crt-green); color: #000; }
+        .btn:active:not(:disabled) { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.3; border-color: #333; color: #333; }
+        
+        #modal, #ending { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5,5,5,0.98); z-index: 500; display: none; flex-direction: column; justify-content: flex-start; align-items: center; padding: 30px 20px; overflow-y: auto; }
+        .m-title { font-size: 28px; font-weight: 900; color: #fff; margin-bottom: 5px; text-align: center; }
+        .m-sub { color: #888; font-size: 14px; margin-bottom: 20px; text-align: center; }
+        
+        .option { width: 100%; background: #111; border: 1px solid #333; padding: 18px; margin: 8px 0; cursor: pointer; border-radius: 10px; text-align: left; transition: 0.2s; }
+        .option:hover { border-color: var(--crt-green); background: #1a1a1a; transform: translateX(5px); }
+        .opt-title { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
+        .opt-desc { font-size: 13px; color: #888; line-height: 1.4; }
+        
+        #e-t { font-size: 32px; font-weight: 900; margin-bottom: 20px; text-align: center; border-bottom: 2px solid; padding-bottom: 10px; width: 100%; }
+        #e-d { font-size: 16px; color: #ccc; line-height: 1.8; text-align: justify; }
+        
+        #fx { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:100; }
+        .danger-pulse { animation: p_red 0.6s infinite; }
+        @keyframes p_red { 50% { box-shadow: inset 0 0 60px rgba(255,0,0,0.5); } }
+        .heal-pulse { animation: p_green 1s; }
+        @keyframes p_green { 50% { box-shadow: inset 0 0 80px rgba(46,213,115,0.6); } }
+    </style>
+</head>
+<body>
+<div id="monitor">
+    <div id="modal" style="display:flex;">
+        <div class="m-title">签署规培协议</div>
+        <div class="m-sub">选择你的原生家庭与背景</div>
+        <div id="opts" style="width: 100%;">
+            <div class="option" onclick="start('rich')"><div class="opt-title" style="color:var(--money)">💰 带资进组</div><div class="opt-desc">家里有矿。初始资金 ¥2000。</div></div>
+            <div class="option" onclick="start('tough')"><div class="opt-title" style="color:var(--stamina)">💪 头皮铁骨</div><div class="opt-desc">体力上限 120，初始满血。</div></div>
+            <div class="option" onclick="start('charm')"><div class="opt-title" style="color:var(--favor)">🎭 八面玲珑</div><div class="opt-desc">导师和医患关系初始 90。</div></div>
+            <div class="option" onclick="start('hell')" style="border-color:#ff4757"><div class="opt-title" style="color:#ff4757">💀 纯粹底层 (地狱)</div><div class="opt-desc" style="color:#ff8a8a">全属性55，资金¥150。触发【隐藏真结局】的唯一途径。</div></div>
+        </div>
+    </div>
+
+    <div id="screen">
+        <div id="fx"></div>
+        <div id="status-bar">
+            <div class="stat-group"><div class="stat-label">DAY_LOG</div><div id="day-val">01</div></div>
+            <div class="stat-group"><div class="stat-label" style="text-align:right">FUNDS</div><div id="money-val">¥400</div></div>
+        </div>
+
+        <div id="dept-sign">DEPT: 正在分配</div>
+        
+        <div id="vitals">
+            <div class="vital-box" style="color:var(--stamina)"><span class="vital-label">STA 体力</span><span class="v-num" id="v-stamina">80</span><div id="ecg-container"><canvas id="ecg-canvas" width="100" height="40"></canvas></div><div class="bar-bg"><div id="b-stamina" class="bar-fill" style="background:var(--stamina)"></div></div></div>
+            <div class="vital-box" style="color:var(--academic)"><span class="vital-label">SCI 科研</span><span class="v-num" id="v-academic">70</span><div class="bar-bg"><div id="b-academic" class="bar-fill" style="background:var(--academic)"></div></div></div>
+            <div class="vital-box" style="color:var(--favor)"><span class="vital-label">FAV 好感</span><span class="v-num" id="v-favor">70</span><div class="bar-bg"><div id="b-favor" class="bar-fill" style="background:var(--favor)"></div></div></div>
+            <div class="vital-box" style="color:var(--patient)"><span class="vital-label">PR 医患</span><span class="v-num" id="v-patient">70</span><div class="bar-bg"><div id="b-patient" class="bar-fill" style="background:var(--patient)"></div></div></div>
+        </div>
+
+        <div id="card" class="th-normal"><div id="card-t">系统载入中...</div><div id="card-d">正在同步临床数据...</div></div>
+        <div id="btns"><button id="btn-l" class="btn" onclick="act('l')">左</button><button id="btn-r" class="btn" onclick="act('r')">右</button></div>
+        
+        <div id="ending"><div id="e-t"></div><div id="e-d"></div><button class="btn" onclick="location.reload()" style="width:100%; padding: 20px; margin-top: 20px; font-size:18px">重启人生</button></div>
+    </div>
+</div>
+
+<script>
+    // --- V15.0 加入 flag (因果系统) 的题库 ---
+    // setFlag: 标记某个状态; reqFlag: 需要某个状态才触发
+    const DEPTS = {
+        "IM": { n: "呼吸内科", c: "#00d8d6", b: "慢性病房。体力消耗极慢", mod: { s_l: 0.7 },
+            cards: [
+                { th:"money", t: "红包考验", d: "出院病人偷偷在枕头下留了1000元。", l: "上交科室", le:{favor:15, patient:10}, r: "偷偷收下", re:{money:1000, favor:-10, setFlag:"hasBribe"} },
+                { th:"normal", t: "雾化之争", d: "15床家属质疑生理盐水雾化骗钱。", l: "耐心解释", le:{stamina:-10, patient:15}, r: "开昂贵药", re:{patient:-10, money:60} },
+                { th:"blood", t: "盲穿事故", d: "你做胸穿时，病人突然剧烈咳嗽出血。", l: "立刻拔针", le:{stamina:-10, favor:-10}, r: "强行继续", re:{patient:-20, favor:-15} },
+                { th:"paper", t: "病历地狱", d: "明早迎检，你要补完50份出院小结。", l: "通宵手打", le:{stamina:-20, favor:15}, r: "复制粘贴", re:{stamina:5, favor:-20} },
+                { th:"normal", t: "食堂阿姨", d: "阿姨看你太瘦，偷偷多给你个鸡腿。", l: "狂炫鸡腿", le:{stamina:25}, r: "分给护士", re:{favor:15, stamina:5} },
+                { th:"paper", t: "主任查房", d: "主任突击提问18床的痰培养结果。", l: "胡编乱造", le:{favor:-20, academic:-10}, r: "认错去查", re:{stamina:-10, favor:10} },
+                { th:"toxic", t: "跨科会诊", d: "外科请你去看一个咳痰不爽的病人。", l: "仔细查体", le:{academic:10, stamina:-10}, r: "随便看一眼", re:{favor:-10, patient:-10} }
+            ]
+        },
+        "ER": { n: "急诊科", c: "#ff4757", b: "高压高薪。体力耗1.3x，钱1.5x", mod: { s_l: 1.3, m_g: 1.5 },
+            cards: [
+                { th:"blood", t: "心跳骤停", d: "救护车送来个猝死，主任吼你上去按！", l: "全速按压", le:{stamina:-25, favor:15, academic:10}, r: "按五分钟放弃", re:{stamina:-5, patient:-25} },
+                { th:"dark", t: "醉汉砸场", d: "醉汉在分诊台闹事，拎着酒瓶走向你。", l: "格斗反击", le:{stamina:-15, patient:-30, favor:-10}, r: "躲进厕所报警", re:{stamina:5, patient:-10} },
+                { th:"toxic", t: "洗胃地狱", d: "农药中毒洗胃，呕吐物喷了你一脸。", l: "忍恶心操作", le:{stamina:-20, patient:15}, r: "推给护士干", re:{patient:-15, favor:-20} },
+                { th:"money", t: "夜班补助", d: "这个月急诊科额外发了夜班费。", l: "请喝奶茶", le:{favor:20, money:-100}, r: "自己存起来", re:{money:300, stamina:5} },
+                { th:"blood", t: "连环车祸", d: "瞬间涌入15个满身是血的伤员。", l: "超负荷抢救", le:{stamina:-30, favor:20}, r: "指挥分诊", re:{academic:15, favor:-10} },
+                { th:"blood", t: "美容缝合", d: "小孩额头开缝，家属要求不能留疤。", l: "精细缝合", le:{academic:15, stamina:-15, patient:10}, r: "粗糙对齐", re:{stamina:-5, patient:-20} },
+                { th:"toxic", t: "异物卡喉", d: "小孩吞了硬币，憋得面色发紫。", l: "海姆立克急救", le:{stamina:-15, patient:25, favor:10}, r: "呼叫耳鼻喉科", re:{stamina:-5, patient:-15} }
+            ]
+        },
+        "OR": { n: "手术室", c: "#ffa502", b: "职场炼狱。好感加成1.3x，体力耗1.2x", mod: { f_g: 1.3, s_l: 1.2 },
+            cards: [
+                { th:"normal", t: "极限拉钩", d: "手术拉钩4小时，你感觉肩膀断了。", l: "尴尬陪笑", le:{favor:15, stamina:-20}, r: "发呆走神", re:{favor:-15, stamina:-10} },
+                { th:"blood", t: "大出血", d: "主任切破了血管！吼你拿纱布！", l: "精准递纱布", le:{academic:15, favor:20, stamina:-10}, r: "手抖掉在地上", re:{favor:-30, patient:-20} },
+                { th:"paper", t: "纱布丢失", d: "关腹前，护士说少了一块纱布。", l: "开腹重新找", le:{stamina:-25, patient:15}, r: "指责护士", re:{favor:-20, patient:-25} },
+                { th:"money", t: "主任咖啡", d: "主任暗示想喝星巴克。", l: "跑腿去买", le:{money:-80, favor:25, stamina:-5}, r: "装没听见", re:{favor:-20} },
+                { th:"toxic", t: "无菌突破", d: "主任的袖口碰到了没消毒的灯把。", l: "大声制止", le:{patient:15, favor:-20}, r: "装瞎不管", re:{patient:-20, academic:-10} },
+                { th:"normal", t: "术后转运", d: "病人麻醉没全醒，要推回ICU。", l: "紧盯血氧", le:{patient:15, stamina:-15}, r: "推给工人大叔", re:{patient:-15, favor:-10} },
+                { th:"dark", t: "急诊加台", d: "晚上11点准备下班，送来肠穿孔。", l: "主动上台", le:{favor:30, stamina:-25}, r: "假装手机关机", re:{favor:-30, stamina:15} }
+            ]
+        },
+        "LAB": { n: "实验室", c: "#2979ff", b: "论文机器。科研提升1.5x，医患-1/天", mod: { a_g: 1.5, d_p: -1 },
+            cards: [
+                { th:"toxic", t: "数据修饰", d: "实验结果不显著，稍微改改就能申博。", l: "坚持重做", le:{stamina:-25, academic:15}, r: "PS魔法", re:{academic:35, favor:-10, setFlag:"dataFake"} },
+                { th:"dark", t: "断电惊魂", d: "细胞房停电，你珍贵的肿瘤细胞要死。", l: "抢救细胞", le:{stamina:-25, academic:15}, r: "回家睡觉", re:{academic:-30, favor:-20} },
+                { th:"paper", t: "导师PPT", d: "导师去讲学，让你连夜做个PPT。", l: "精修动画", le:{academic:10, favor:30, stamina:-20}, r: "拿旧模板乱缝", re:{favor:-25, academic:5} },
+                { th:"paper", t: "统计学P值", d: "算出的P值是0.051，导师让你优化。", l: "加做样本", le:{stamina:-20, academic:20}, r: "剔除异常点", re:{academic:25, favor:-20, setFlag:"dataFake"} },
+                { th:"normal", t: "实验室搬家", d: "老板让你把几百个试剂盒搬去新楼。", l: "化身搬运工", le:{stamina:-30, favor:20}, r: "花钱雇人搬", re:{money:-150, favor:10} },
+                { th:"dark", t: "组会处刑", d: "轮到你汇报英文顶级文献了，你没看。", l: "硬着头皮胡说", le:{favor:-25, academic:-10}, r: "通宵强记", re:{stamina:-25, academic:15} },
+                { th:"money", t: "翻译外包", d: "论文写完了，需要极高的英文润色。", l: "死磕词典", le:{stamina:-20, academic:10}, r: "花重金外包", re:{money:-300, academic:20} }
+            ]
+        },
+        "LIFE": { n: "社会生活", c: "#fff", b: "众生皆苦", mod: {},
+            cards: [
+                { th:"money", t: "房租刺客", d: "房东突然说房租要涨500块。", l: "含泪交钱", le:{money:-500, stamina:-5}, r: "大吵一架搬家", re:{stamina:-25, money:-150} },
+                { th:"dark", t: "同学聚会", d: "大厂同学请客，谈论着期权和买房。", l: "陷入极度内耗", le:{stamina:-15, academic:-10}, r: "化嫉妒为动力", re:{academic:20, stamina:-10} },
+                { th:"blood", t: "年度体检", d: "体检提示颈椎曲度变直，轻度脂肪肝。", l: "办健身卡", le:{money:-300, stamina:20}, r: "不管了继续熬", re:{stamina:-15, academic:5} },
+                { th:"money", t: "双十一诱惑", d: "你想买个降噪耳机在值班室睡觉用。", l: "买索尼顶配", le:{money:-600, stamina:20}, r: "买便宜货", re:{money:-50, stamina:5} },
+                { th:"dark", t: "感情危机", d: "伴侣嫌你天天夜班，感觉像在守活寡。", l: "买礼物哄", le:{money:-300, stamina:10}, r: "冷处理", re:{stamina:-15, academic:5} }
+            ]
+        },
+        // --- 命运暗线 (Karma Check) ---
+        "KARMA": {
+            cards: [
+                { reqFlag: "hasBribe", th:"dark", t: "纪委谈话", d: "有人实名举报你收受病人1000元红包。", l: "主动坦白退赃", le:{favor:-100, patient:-50}, r: "死不承认", re:{patient:-100} },
+                { reqFlag: "dataFake", th:"dark", t: "学术打假", d: "你发在核心期刊的论文被同行扒出图片造假。", l: "撤稿致歉", le:{academic:-100}, r: "甩锅给学弟", re:{favor:-100, academic:-80} }
+            ]
+        }
+    };
+
+    let s = {}; let curC = null; let currentOrigin = "";
+    let ecgTime = 0; let ecgRunning = false;
+    const canvas = document.getElementById('ecg-canvas'); const ctx = canvas.getContext('2d');
+
+    function start(origin) {
+        document.getElementById('modal').style.display = 'none';
+        currentOrigin = origin;
+        s = { stamina:85, academic:75, favor:75, patient:75, money:500, maxStam: 100, day:1, d:"IM", 
+              flags: {}, used: {IM:[], ER:[], OR:[], LAB:[], LIFE:[], KARMA:[]} };
+
+        if(origin === 'rich') s.money = 2000;
+        if(origin === 'tough') { s.maxStam = 120; s.stamina = 120; }
+        if(origin === 'charm') { s.favor = 90; s.patient = 90; }
+        if(origin === 'hell') { s.stamina=55; s.academic=55; s.favor=55; s.patient=55; s.money=150; }
+
+        if(!ecgRunning) { ecgRunning = true; drawECG(); }
+        upUI(); loadCard();
+    }
+
+    function drawECG() {
+        if(!ecgRunning) return;
+        const w = canvas.width; const h = canvas.height; ctx.clearRect(0,0,w,h);
+        
+        let speed = s.stamina <= 0 ? 0.5 : (s.stamina < 30 ? 3.5 : 1 + (s.maxStam - s.stamina)*0.015);
+        ecgTime += speed;
+        
+        ctx.beginPath();
+        ctx.strokeStyle = s.stamina <= 0 ? "#440000" : (s.stamina < 30 ? "#ff4757" : "#00ff41");
+        ctx.lineWidth = 2; ctx.lineJoin = 'round';
+
+        for (let x = 0; x < w; x++) {
+            let t = (ecgTime - (w - x) * 1.5) % 100; let y = h/2;
+            if (s.stamina > 0) {
+                if(t>10 && t<20) y -= Math.sin((t-10)/10 * Math.PI)*4;
+                if(t>25 && t<28) y += 6;
+                if(t>28 && t<31) y -= 30;
+                if(t>31 && t<34) y += 10;
+                if(t>45 && t<65) y -= Math.sin((t-45)/20 * Math.PI)*8;
+                if(s.stamina < 30) y += (Math.random()-0.5)*10;
+            }
+            if(x===0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke(); requestAnimationFrame(drawECG);
+    }
+
+    function upUI() {
+        const d = DEPTS[s.d];
+        const sign = document.getElementById('dept-sign');
+        sign.innerText = `[ ${d.n} ]`; sign.style.color = d.c; sign.style.borderColor = d.c;
+        
+        document.getElementById('day-val').innerText = String(s.day).padStart(2,'0');
+        document.getElementById('money-val').innerText = `¥${s.money}`;
+        
+        ['stamina','academic','favor','patient'].forEach(id => {
+            document.getElementById(`v-${id}`).innerText = s[id];
+            let max = id === 'stamina' ? s.maxStam : 100;
+            document.getElementById(`b-${id}`).style.width = Math.min(100, (s[id]/max)*100) + "%";
+        });
+        
+        if(s.stamina < 30 || s.patient < 30) document.getElementById('fx').classList.add('danger-pulse');
+        else document.getElementById('fx').classList.remove('danger-pulse');
+    }
+
+    function loadCard() {
+        if(s.day > 50) return checkWin();
+        if(s.day % 10 === 0 && s.day > 1) { showModal(); return; }
+
+        let poolKey = s.d;
+        
+        // 命运暗线：如果天数>35，有极小概率触发结算
+        if(s.day > 35 && Math.random() < 0.15) {
+            let karmaCards = DEPTS["KARMA"].cards.filter(c => s.flags[c.reqFlag] && !s.used["KARMA"].includes(c.t));
+            if(karmaCards.length > 0) {
+                curC = karmaCards[0];
+                s.used["KARMA"].push(curC.t);
+                renderCard();
+                return;
+            }
+        }
+
+        // 普通题库抽取
+        if(Math.random() < 0.2) poolKey = "LIFE";
+        let pool = DEPTS[poolKey].cards;
+        let avails = pool.map((_, i) => i).filter(i => !s.used[poolKey].includes(i));
+        if (avails.length === 0) { s.used[poolKey] = []; avails = pool.map((_, i) => i); }
+
+        const idx = avails[Math.floor(Math.random() * avails.length)];
+        s.used[poolKey].push(idx); 
+        curC = pool[idx];
+        
+        renderCard();
+    }
+
+    function renderCard() {
+        document.getElementById('card').className = `th-${curC.th || 'normal'}`;
+        document.getElementById('card-t').innerText = curC.t; 
+        document.getElementById('card-d').innerText = curC.d;
+        document.getElementById('btn-l').innerText = curC.l; 
+        document.getElementById('btn-r').innerText = curC.r;
+        
+        document.getElementById('btn-l').disabled = (s.money + (curC.le.money||0) < 0);
+        document.getElementById('btn-r').disabled = (s.money + (curC.re.money||0) < 0);
+    }
+
+    function act(dir) {
+        const eff = dir === 'l' ? {...curC.le} : {...curC.re}; 
+        const m = DEPTS[s.d].mod || {}; 
+
+        // 记录罪恶标签
+        if(eff.setFlag) s.flags[eff.setFlag] = true;
+
+        if(eff.stamina < 0) eff.stamina = Math.floor(eff.stamina * (m.s_l || 1));
+        if(eff.academic > 0) eff.academic = Math.floor(eff.academic * (m.a_g || 1));
+        if(eff.favor > 0) eff.favor = Math.floor(eff.favor * (m.f_g || 1));
+        if(eff.money > 0) eff.money = Math.floor(eff.money * (m.m_g || 1));
+
+        for(let k in eff) if(s.hasOwnProperty(k)) s[k] += eff[k];
+        if(m.d_p) s.patient += m.d_p;
+
+        ['academic','favor','patient'].forEach(k => s[k] = Math.min(100, Math.max(0, s[k])));
+        s.stamina = Math.min(s.maxStam, Math.max(0, s.stamina));
+
+        if(checkDeath()) return;
+
+        s.day++; upUI();
+        const cardNode = document.getElementById('card');
+        cardNode.style.transform = "scale(0.95)"; cardNode.style.opacity = 0;
+        
+        setTimeout(() => { loadCard(); cardNode.style.transform = "scale(1)"; cardNode.style.opacity = 1; }, 300);
+    }
+
+    function showModal() {
+        s.stamina = Math.min(s.maxStam, s.stamina + 15);
+        s.academic = Math.min(100, s.academic + 10);
+        s.favor = Math.min(100, s.favor + 10);
+        s.patient = Math.min(100, s.patient + 10);
+        
+        document.getElementById('fx').classList.add('heal-pulse');
+        setTimeout(() => { document.getElementById('fx').classList.remove('heal-pulse'); }, 1000);
+
+        const m = document.getElementById('modal'); const o = document.getElementById('opts');
+        document.querySelector('.m-title').innerText = "阶段调休与轮转";
+        document.querySelector('.m-sub').innerText = "你获得了难得的喘息。全属性回升，请选择下一科室。";
+        m.style.display = 'flex'; o.innerHTML = '';
+        
+        const keys = Object.keys(DEPTS).filter(k=>k!=='LIFE' && k!=='KARMA');
+        const k1 = keys[Math.floor(Math.random()*keys.length)];
+        let k2 = keys[Math.floor(Math.random()*keys.length)];
+        while(k2 === k1) k2 = keys[Math.floor(Math.random()*keys.length)];
+
+        [k1, k2].forEach(k => {
+            const d = DEPTS[k]; const div = document.createElement('div'); div.className = 'option';
+            div.innerHTML = `<div class="opt-title" style="color:${d.c}">${d.n}</div><div class="opt-desc">${d.b}</div>`;
+            div.onclick = () => { s.d = k; m.style.display = 'none'; s.day++; upUI(); loadCard(); };
+            o.appendChild(div);
+        });
+    }
+
+    // --- 多元化死法档案 ---
+    function checkDeath() {
+        if (s.stamina <= 0) {
+            let txt = "监护仪发出了长鸣，红线拉直。你在连续熬夜后获得了永久的休息。<br><br>追悼会上，主任高度评价了你的奉献。";
+            if(s.d === "ER") txt = "你倒在了急诊室推车旁，抢救别人的你，最终没有等来自己的抢救。<br><br>科室为你申请了工伤，这成了你这辈子最大的一笔收入。";
+            if(s.d === "OR") txt = "在长达10小时的手术后，你松开了拉钩的手，重重地倒在了无菌区。<br><br>你的离开让手术被迫中断了5分钟。";
+            return end("💀 猝死：生理性退场", "#ff4757", txt);
+        }
+        if (s.patient <= 0) {
+            let txt = "门诊大厅拉起了白条幅。家属的怒骂和医调委的电话彻底粉碎了你。<br><br>由于你的疏漏，你成了科室的替罪羊。执业证被吊销，你脱下白大褂，走进了陌生的社会。";
+            if(s.flags.hasBribe) txt = "纪委找你谈话了。不仅是收受红包，家属还将所有罪责推到了你身上。<br><br>你不仅被开除，还面临着起诉。职业生涯以最耻辱的方式结束。";
+            return end("⚖️ 开除：职业性断崖", "#2ed573", txt);
+        }
+        if (s.favor <= 0) {
+            let txt = "组会上，导师把你叫了起来。<br><br>'既然不想干，那就别干了。' 推荐信被当面撕碎。你失去了申博资格，专硕答辩也被卡死。你成了边缘人。";
+            return end("🚪 劝退：社会性死亡", "#ffa502", txt);
+        }
+        if (s.academic <= 0) {
+            let txt = "申博名单公示了，没有你。<br><br>科研积分为零，三年制博士梦碎。你拿着含金量极低的规培证，退出了内卷战场，去了老家县城的一家二甲医院。";
+            if(s.flags.dataFake) txt = "你造假的数据被同行指出。学术委员会发布了通报批评。<br><br>你成为了医疗学术圈的过街老鼠，不仅博士读不成，连现有的学位都被追回。";
+            return end("📚 延毕：学术性枯萎", "#2e86de", txt);
+        }
+        return false;
+    }
+
+    function checkWin() {
+        if (currentOrigin === 'hell' && s.academic >= 80 && s.favor >= 80) {
+            return end("✨ 【隐藏结局】深渊破茧", "#f1c40f", "你以最烂的牌，打出了绝杀。<br><br>在极其匮乏的资金和崩溃的体力下，你凭借非人的意志力，不仅摆平了所有医闹，还在主任极力推荐下，带着高分 SCI 杀入了上海顶级医院复试。<br><br>拿到录取通知书的那一刻，你站在黄浦江边，晚风吹拂。你知道接下来的三年博士不过是更深的炼狱，但至少现在，你赢了。");
+        }
+        if (s.academic >= 60 && s.favor >= 60) {
+            return end("🌟 普通结局：上岸的代价", "#fff", "50天地狱规培结束。你拿到了推荐信，科研积分也刚好踩线。<br><br>你接到了上海打来的电话。看着日益倒退的发际线和长期熬夜的黑眼圈，你叹了口气，把废病历扔进碎纸机，开始打包去上海的行李。");
+        } else {
+            return end("🏢 遗憾结局：平庸之路", "#888", "你活下来了，但也仅此而已。<br><br>惨淡的科研履历让你在申博大军中毫无竞争力。上海成了一个遥不可及的词汇。你最终成了一名普通主治，在这座二线城市重复着一眼望到头的人生。");
+        }
+    }
+
+    function end(t, c, d) {
+        document.getElementById('card').style.display = 'none'; document.getElementById('btns').style.display = 'none';
+        document.getElementById('ending').style.display = 'flex';
+        document.getElementById('e-t').innerText = t; document.getElementById('e-t').style.borderColor = c; document.getElementById('e-t').style.color = c;
+        document.getElementById('e-d').innerHTML = d;
+        return true;
+    }
+</script>
+</body>
+</html>
